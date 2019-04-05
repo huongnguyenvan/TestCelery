@@ -1,0 +1,67 @@
+version: "3.7"
+
+
+services:
+  web:
+    build: .
+    #    command: python manage.py migrate && python manage.py runserver
+    command: >
+      bash -c "python manage.py migrate && python manage.py runserver"
+    container_name: test-celery-dev
+    restart: always
+    ports:
+      - 8000:8000
+
+  rabbitmq:
+    image: rabbitmq
+    container_name: test-rabbitmq-dev
+    env_file:
+      - ./.env/.base
+    volumes:
+      - rabbitmq_data_dev:/var/lib/rabbitmq
+    restart: always
+  #    ports:
+  #      - 5672:5672
+  #
+  #
+  worker:
+    build: .
+    command: celery -A TestCelery worker -l info --concurrency=8
+    depends_on:
+      - web
+      - rabbitmq
+    restart: always
+    volumes:
+      - celery_worker_dev:/var/run/celery/
+
+  flower:
+    container_name: flower_test_celery
+    build: .
+    env_file:
+      - ./.env/.base
+    command: sh -c "celery -A TestCelery flower" --basic_auth=$$FLOWER_USER:$$FLOWER_PASSWORD
+    depends_on:
+      - web
+      - rabbitmq
+    restart: always
+    ports:
+      - 5555:5555
+    volumes:
+      - celery_flower_dev:/var/test/persistent/
+
+#  cron:
+#    container_name: test-cron-dev
+#    build: .
+#    command: celery -A TestCelery beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+#    depends_on:
+#      - rabbitmq
+#      - web
+#    restart: always
+
+volumes:
+  rabbitmq_data_dev:
+    name: custom_rabbitmq_data_dev_1
+  celery_worker_dev:
+    name: custom_celery_worker_dev_1
+  celery_flower_dev:
+    name: custom_celery_flower_dev_1
